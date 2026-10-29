@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image to PDF Maker</title>
+<script src="vendor/jspdf.umd.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#6b7280;--ac:#2563eb;--bd:#e3e6ea}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2027;--tx:#eef0f3;--mut:#9aa3af;--ac:#5b9bff;--bd:#2b323b}}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx);padding:16px;max-width:720px;margin:auto}
+h1{font-size:1.3rem;margin:4px 0 14px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+button,label.btn{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-size:1rem;cursor:pointer}
+button.sec{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+button:disabled{opacity:.4}
+input[type=file]{display:none}
+select{padding:11px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font-size:1rem}
+.list{display:grid;gap:8px}
+.item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:8px}
+.item img{width:64px;height:64px;object-fit:cover;border-radius:8px}
+.item .n{flex:1;min-width:0;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .n small{display:block;color:var(--mut)}
+.item button{padding:8px 10px;background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+.empty{color:var(--mut);text-align:center;padding:30px}
+#st{color:var(--mut);margin:8px 0}
+</style>
+</head>
+<body>
+<h1>Image to PDF Maker</h1>
+<div class="bar">
+  <label class="btn">Choose from Gallery<input id="f" type="file" accept="image/*" multiple></label>
+  <button class="sec" id="rev" disabled>⇅ Reverse order</button>
+  <button class="sec" id="clr" disabled>Clear</button>
+</div>
+<div class="bar">
+  <select id="size">
+    <option value="a4">A4 page</option>
+    <option value="letter">Letter page</option>
+    <option value="fit">Fit to image size</option>
+  </select>
+  <button id="mk" disabled>Create PDF</button>
+</div>
+<div id="st"></div>
+<div class="list" id="list"><div class="empty">No images yet. Tap “Choose from Gallery”.</div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let items=[];
+$('f').addEventListener('change',e=>{
+  for(const file of e.target.files) items.push({file,url:URL.createObjectURL(file)});
+  e.target.value='';
+  render();
+});
+$('rev').onclick=()=>{items.reverse();render()};
+$('clr').onclick=()=>{items.forEach(i=>URL.revokeObjectURL(i.url));items=[];render()};
+
+function render(){
+  const l=$('list');
+  l.innerHTML='';
+  if(!items.length) l.innerHTML='<div class="empty">No images yet. Tap “Choose from Gallery”.</div>';
+  items.forEach((it,i)=>{
+    const d=document.createElement('div');d.className='item';
+    d.innerHTML='<img src="'+it.url+'"><div class="n">'+(i+1)+'. '+esc(it.file.name)+'<small>'+(it.file.size/1024|0)+' KB</small></div>';
+    [['↑',()=>mv(i,-1)],['↓',()=>mv(i,1)],['✕',()=>rm(i)]].forEach(([t,fn])=>{
+      const b=document.createElement('button');b.textContent=t;b.onclick=fn;d.appendChild(b);
+    });
+    l.appendChild(d);
+  });
+  ['rev','clr','mk'].forEach(k=>$(k).disabled=!items.length);
+}
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function mv(i,d){const j=i+d;if(j<0||j>=items.length)return;[items[i],items[j]]=[items[j],items[i]];render()}
+function rm(i){URL.revokeObjectURL(items[i].url);items.splice(i,1);render()}
+
+function load(url){return new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('Cannot read image'));im.src=url})}
+
+$('mk').onclick=async()=>{
+  const {jsPDF}=window.jspdf;
+  const mode=$('size').value;
+  $('mk').disabled=true;
+  let pdf;
+  try{
+    for(let i=0;i<items.length;i++){
+      $('st').textContent='Processing '+(i+1)+' / '+items.length+'…';
+      const im=await load(items[i].url);
+      const w=im.naturalWidth,h=im.naturalHeight;
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(im,0,0);
+      const data=c.toDataURL('image/jpeg',0.92);
+      if(mode==='fit'){
+        const o=w>h?'l':'p';
+        if(!pdf) pdf=new jsPDF({orientation:o,unit:'px',format:[w,h],hotfixes:['px_scaling']});
+        else pdf.addPage([w,h],o);
+        pdf.addImage(data,'JPEG',0,0,w,h);
+      }else{
+        const o=w>h?'l':'p';
+        if(!pdf) pdf=new jsPDF({orientation:o,unit:'mm',format:mode});
+        else pdf.addPage(mode,o);
+        const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+        const m=8,r=Math.min((pw-2*m)/w,(ph-2*m)/h);
+        const iw=w*r,ih=h*r;
+        pdf.addImage(data,'JPEG',(pw-iw)/2,(ph-ih)/2,iw,ih);
+      }
+    }
+    const name='images-'+Date.now()+'.pdf';
+    const P=window.Capacitor&&window.Capacitor.Plugins;
+    if(P&&P.Filesystem&&P.Share){
+      const b64=pdf.output('datauristring').split(',')[1];
+      const r=await P.Filesystem.writeFile({path:name,data:b64,directory:'CACHE'});
+      await P.Share.share({title:name,url:r.uri,dialogTitle:'Save / Share PDF'});
+    }else{ pdf.save(name); }
+    $('st').textContent='Done! PDF ready.';
+  }catch(err){
+    $('st').textContent='Error: '+err.message;
+  }
+  $('mk').disabled=!items.length;
+};
+</script>
+</body>
+</html>

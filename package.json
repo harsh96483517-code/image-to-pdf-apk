@@ -1,0 +1,19 @@
+{
+  "name": "image-to-pdf",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline Android app that turns gallery photos into a single PDF",
+  "scripts": {
+    "prepare-web": "mkdir -p www/vendor && cp node_modules/jspdf/dist/jspdf.umd.min.js www/vendor/jspdf.umd.min.js",
+    "sync": "npm run prepare-web && npx cap sync android",
+    "apk": "npm run sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/cli": "^6.1.0",
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/share": "^6.0.0",
+    "jspdf": "^2.5.1"
+  }
+}
