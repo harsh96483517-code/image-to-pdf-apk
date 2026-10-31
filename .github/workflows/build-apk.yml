@@ -33,6 +33,9 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Allow a larger heap for big batches
+        run: python3 scripts/patch-manifest.py
+
       - name: Sync web assets into Android project
         run: npx cap sync android
 

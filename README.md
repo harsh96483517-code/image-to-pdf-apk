@@ -29,7 +29,28 @@ Output: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 ## Features
 
-- Pick multiple images from the gallery
+- Pick multiple images from the gallery, including very large batches
 - Reorder, reverse, or remove them
 - A4 / Letter page sizes, or fit each page to the image
+- Quality: Auto / High / Small file
+- Live progress bar with cancel
 - Share or save the finished PDF via the system share sheet
+
+## Large batches (100-500+ images)
+
+Building a PDF from hundreds of photos is memory-bound, so the app is written
+to keep the peak footprint flat instead of growing with the batch:
+
+- Page images are downscaled to a 1240 px long edge (900 px in "Small file"
+  mode) before they reach jsPDF. A 48 MP phone photo becomes a few hundred KB
+  instead of tens of MB.
+- Images are decoded one at a time and every reference is dropped before the
+  next one, so only a single bitmap is alive at once.
+- List thumbnails are 128 px and decoded lazily as you scroll, not all at once.
+- The finished PDF is written to disk in ~400 KB chunks (`writeFile` then
+  `appendFile`) rather than as one base64 string of the whole file.
+- `android:largeHeap="true"` is added to the manifest by
+  `scripts/patch-manifest.py` during the CI build.
+
+Unreadable files are skipped rather than aborting the whole run, and the status
+line reports how many were skipped.
