@@ -27,9 +27,6 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Copy jsPDF into the web assets
-        run: npm run prepare-web
-
       - name: Add Android platform
         run: npx cap add android
 
